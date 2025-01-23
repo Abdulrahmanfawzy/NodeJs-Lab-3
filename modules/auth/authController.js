@@ -25,11 +25,13 @@ export const signUpController = async (req, res) => {
     });
     const userObj = insertUser.toObject();
     delete userObj.password;
-
-    let emailSent = sendMail(
+    console.log(userObj);
+    const tokenId = jwt.sign({id:userObj._id , email} , process.env.tokenKey)
+    
+    sendMail(
       email,
       "Confirm email",
-      `http://localhost:4200/api/v1/confirmEmail/${userObj._id}`
+      `${req.protocol}://localhost:4200/api/v1/confirmEmail/${tokenId}`
     );
 
     res.json({ message: "done", userObj });
@@ -46,12 +48,17 @@ export const signInController = async (req, res) => {
     if (!user) {
       return res.json({ message: "you have to register first" });
     }
-    const checkPass = bcryptjs.compareSync(password, user.password);
-    if (!checkPass) {
-      return res.json({ message: "password is wrong" });
+
+    if(user.isConfirmed == true){
+      const checkPass = bcryptjs.compareSync(password, user.password);
+      if (!checkPass) {
+        return res.json({ message: "password is wrong" });
+      }
+      const token = jwt.sign({ email, _id: user._id }, process.env.tokenKey);
+      res.json({ message: "done", token });
+    }else{
+      res.json({"message" : "you have to confirm your email first"});
     }
-    const token = jwt.sign({ email, _id: user._id }, process.env.tokenKey);
-    res.json({ message: "done", token });
   } catch (err) {
     res.json({ message: "error", err });
   }
@@ -59,22 +66,21 @@ export const signInController = async (req, res) => {
 
 export const confirmEmailController = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { isConfirmed } = req.body;
-    const user = await userModel.findById(id);
-    if (isConfirmed && user) {
-      const userFound = await userModel.findByIdAndUpdate(id, {
-        isConfirmed: true,
-      });
-      res.json({ message: "welcome you are a valid user" });
-    } else {
-      res.json({ message: "you are not confirmed yet" });
+    const { token } = req.params;
+    const decode = jwt.verify(token , process.env.tokenKey)
+
+    if(!decode){
+      return res.json({"message" : "token is invalid"});
     }
+    const updateIsConfirmed = await userModel.findByIdAndUpdate(decode.id , {
+      isConfirmed: true
+    },{new: true});
+    res.json({"message" : "email is confirmed"})
   } catch (err) {
-    if (err.path && err.path == "_id") {
-      res.json({ message: "id is invalid" });
-    } else {
-      res.json({ message: "error", err });
+    if(err.message == "invalid signature"){
+      res.json({ message: "token is invalid"});
+    }else{
+      res.json({ message: "error" , err});
     }
   }
 };
