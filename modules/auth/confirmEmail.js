@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import { uiEmailFun } from "./uiEmailMsg.js";
 
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
@@ -15,9 +16,9 @@ export async function sendMail(to , subject , msg) {
     await transporter.sendMail({
       to: to,
       subject: subject, 
-      html: msg,
+      html: uiEmailFun(msg),
     });
-  
+    
     console.log("email sent");
     return true
   } 
